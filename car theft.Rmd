@@ -1,0 +1,684 @@
+---
+title: "Car Theft Curacao"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: 
+      version: 4
+      bootswatch: slate
+    fig_width: 12
+    fig_mobile: TRUE
+    fig_retina: 2
+    orientation: rows
+    vertical_layout: scroll
+    runtime: shiny
+    social: menu
+    source_code: embed
+    logo: /Users/apple/Documents/R/cartheft/logo48.png
+    favicon: /Users/apple/Documents/R/cartheft/logo16.png
+    navbar:
+      - { title: "About LaNubia", href: "https://lanubia.com", align: right, icon: fa-eur}
+      - { title: "Curacao Police", href: "https://www.polis.cw/", align: right, icon: fa-heart }
+    
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE)
+library(tidyverse)
+library(lubridate)
+library(ggthemes)
+library(RColorBrewer)
+library(geosphere)
+library(leaflet)
+library(survival)
+library(survminer)
+library(shiny)
+
+get_png <- function(filename) {
+  grid::rasterGrob(png::readPNG(filename), interpolate = TRUE)
+}
+
+lo <- get_png("/Users/apple/Documents/R/cartheft/www/logo.png")
+gta<-get_png("/Users/apple/Documents/R/cartheft/www/gta.png")
+gta2<-get_png("/Users/apple/Documents/R/cartheft/www/gta2.png")
+
+geo.dist = function(df) {
+  require(geosphere)
+  d <- function(i,z){         # z[1:2] contain long, lat
+    dist <- rep(0,nrow(z))
+    dist[i:nrow(z)] <- distHaversine(z[i:nrow(z),1:2],z[i,1:2])
+    return(dist)
+  }
+  dm <- do.call(cbind,lapply(1:nrow(df),d,df))
+  return(as.dist(dm))
+}
+
+dt<-readRDS("finaldata.rds")
+datasurv<-readRDS("survivaldata.rds")
+cph <- coxph(Surv(days_gap, status) ~ loci.grp + location_type, data = datasurv)
+
+```
+
+Overview {data-orientation=rows}
+=====================================     
+   
+Row {data-height=450}
+-------------------------------------
+
+### Decreasing business of car theft
+
+```{r}
+  dt %>% 
+  count(month, status) %>%
+  ggplot(aes(x=month, y=n, fill=status))+
+  geom_col() +
+  scale_fill_brewer(palette="Paired")+
+  labs(
+    title="Number of car thefts seem to be decreasing in Curacao",
+    subtitle = "At this rate there will be no need for Police!",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=50, ymax=70, xmin = as_date("2021-02-01"))+
+  annotation_custom(gta2, ymin=0, ymax=10, xmin = as_date("2021-06-01"))+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="bottom")
+```
+
+Row {data-height=600}
+-------------------------------------
+   
+### Increasing thefts in residential area 
+
+```{r}
+  tmp<-
+  dt %>% 
+  count(month,location_type) %>% 
+  mutate(location_type2=location_type)
+
+  tmp %>% 
+  ggplot(aes(x=month, y=n))+
+  geom_line(data=tmp %>% select(-location_type), aes(group=location_type2), colour="grey", size=0.5, alpha=0.5) +
+  geom_line(aes(color=location_type), color="#69b3a2", size=1.2)+
+  geom_smooth(method = lm, se = FALSE, size=0.75, linetype="dashed", colour="red")+
+  scale_colour_brewer(palette="Paired")+
+  facet_wrap(~location_type, scale="free_y")+
+  labs(
+    title="Stealing from home is the new trend",
+    subtitle = "",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  # annotation_custom(lo, ymin=50, ymax=70, xmin = as_date("2021-02-01"))+
+  # annotation_custom(gta2, ymin=0, ymax=10, xmin = as_date("2021-06-01"))+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="none",
+        panel.spacing = unit(0.1, "lines"),
+        strip.text.x = element_text(size = 8),
+        strip.text.y = element_text(size = 8),
+        legend.title=element_text(size=10),
+        legend.text=element_text(size=7)
+        )
+
+
+```   
+    
+Row
+-------------------------------------
+
+### More action noticed at night
+
+```{r}
+
+dt %>%
+  count(month, theft_type) %>% 
+  ggplot(aes(x=month, y=n, fill=theft_type))+
+  geom_col(position = "stack") +
+  scale_colour_brewer(palette="Paired")+
+  labs(
+    title="More action is being noticed at night",
+    subtitle = "",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=50, ymax=70, xmin = as_date("2021-02-01"))+
+  annotation_custom(gta2, ymin=0, ymax=10, xmin = as_date("2021-06-01"))+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="bottom")
+  
+
+```
+
+
+### Consumption pattern is stable
+
+```{r}
+dt %>% 
+  filter(status != "Poging") %>% 
+  mutate(month=floor_date(date_start, unit="months")) %>% 
+  mutate(found=ifelse(where_found=="" | where_found=="Niet gevonden" | where_found=="N.G",F,T)) %>% 
+  count(month,found) %>% 
+  ggplot(aes(x=month, y=n, fill=found))+
+  geom_col(position = "stack") +
+  scale_fill_brewer(palette="Paired")+
+  labs(
+    title="Stable efficiency of consumption",
+    subtitle = "",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=40, ymax=60, xmin = as_date("2021-02-01"))+
+  annotation_custom(gta2, ymin=0, ymax=10, xmin = as_date("2021-06-01"))+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="bottom")
+```
+
+Row
+-------------------------------------
+
+### Certain locatities seem to be more attractive targets
+
+```{r}
+dt2 <- dt %>% 
+  group_by(clr) %>% 
+  mutate(cases=n())
+leaflet(dt2) %>% 
+  addTiles() %>% 
+  addCircleMarkers(~long, ~lat, clusterId = ~clr, color=~clr, fillColor = ~clr,
+                   label = ~paste0("Cases ",cases), fillOpacity = 0.2)
+```
+
+
+### Distributed by month
+
+```{r}
+dt %>% 
+  ungroup() %>% 
+  mutate(loci.grp=as.factor(loci.grp)) %>% 
+  mutate(loci.grp = fct_lump(loci.grp, n=10)) %>%
+  count(month,loci.grp) %>% 
+  ggplot(aes(x = month, y=n, fill=loci.grp)) + 
+  geom_col(position = "fill") +
+  scale_fill_brewer(palette="Paired")+
+  labs(
+    title="Focus shifting from popular locations",
+    subtitle = "",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=40, ymax=60, xmin = as_date("2021-02-01"))+
+  annotation_custom(gta2, ymin=0, ymax=10, xmin = as_date("2021-06-01"))+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="bottom")
+```
+
+Row
+-------------------------------------
+
+### Weekend remain more active
+
+
+```{r}
+dt %>% 
+  count(month,wkday) %>% 
+  ggplot(aes(x=month, y=n, fill=wkday))+
+  geom_col(position="fill") +
+  #scale_colour_brewer(palette="Paired")+
+  labs(
+    title="Weekends seem to be more active",
+    subtitle = "Tuesdays active recently",
+    x="",
+    y="Reported incidents related to car theft",
+    caption= "Crime starting on Thursdays are considered in weekend as they often end on Friday"
+  ) +
+  annotation_custom(lo, ymin=20, ymax=30, xmin = 3)+
+  annotation_custom(gta2, ymin=0, ymax=10, xmin = 3)+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="bottom")
+```
+
+
+Row
+-------------------------------------
+
+### Kia remains top choice
+
+```{r}
+dt %>% 
+  mutate(make=fct_lump(make,8)) %>% 
+  count(month, make) %>% 
+  ggplot(aes(x=month, y=n, fill=make))+
+  geom_col(position = "fill") +
+  scale_fill_brewer(palette="Paired")+
+  labs(
+    title="Kia Remains Primary Choice",
+    subtitle = "",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=50, ymax=70, xmin = as_date("2021-02-01"))+
+  annotation_custom(gta2, ymin=0, ymax=10, xmin = as_date("2021-07-01"))+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="bottom")
+```
+
+Descriptive {data-orientation=rows}
+=====================================     
+
+Inputs {.sidebar}
+-------------------------------------
+
+### Select parameters
+
+```{r message=FALSE, warning=FALSE}
+
+selectizeInput("make", "Select make", choices=unique(dt$make), selected="Kia")
+
+renderUI({
+  input$make
+  validate(
+    need(input$make,"Need Make")
+  )
+  mdls<-unique(dt[dt$make==input$make,]$model)
+  selectizeInput("model", "Select model", choices=mdls, selected=mdls[1])
+})
+
+
+renderUI({
+  input$make
+  input$model
+    validate(
+    need(input$make,"Need Make"),
+    need(input$model,"Need Model"),
+    need(dt,"Need required data")
+  )
+  locations<- dt %>% filter(make==input$make) %>%  filter(model==input$model) %>% ungroup() %>% select(loci.grp) %>% unique()
+  selectizeInput("locigrp", "Select location", choices=locations$loci.grp, selected=locations$loci.grp[1])
+})
+
+
+renderUI({
+  input$make
+  input$model
+  input$locigrp
+    validate(
+    need(input$make,"Need Make"),
+    need(input$model,"Need Model"),
+    need(input$locigrp,"Need Location"),
+    need(dt,"Need data")
+  )
+  
+  loc.type<- 
+    dt %>% 
+    filter(make==input$make) %>%  
+    filter(model==input$model) %>% 
+    filter(loci.grp==input$locigrp) %>% 
+    ungroup() %>% 
+    select(location_type) %>% unique()
+
+  selectizeInput("loc_type", "Select location type", choices=loc.type$location_type, selected=loc.type$location_type[1])
+})
+
+renderUI({
+  input$make
+  input$model
+  input$locigrp
+    validate(
+    need(input$make,"Need Make"),
+    need(input$model,"Need Model"),
+    need(input$locigrp,"Need Location"),
+    need(input$loc_type, "Need Location Type"),
+    need(dt,"Need data")
+  )
+  
+  wkdays<- 
+    dt %>% 
+    filter(make==input$make) %>%  
+    filter(model==input$model) %>% 
+    filter(loci.grp==input$locigrp) %>% 
+    filter(location_type==input$loc_type) %>% 
+    ungroup() %>% 
+    select(wkday) %>% unique()
+
+  selectizeInput("wkday", "Select weekday", choices=wkdays$wkday, selected=wkdays$wkday[1])
+})
+
+
+```
+
+
+Column 
+-------------------------------------
+
+### By Make
+
+```{r}
+renderPlot({
+  dt %>% 
+  filter(make==input$make) %>% 
+  mutate(month=floor_date(date_start, unit="months")) %>% 
+  mutate(make=fct_lump(make,8)) %>% 
+  count(month, make) %>% 
+  ggplot(aes(x=month, y=n, fill=make))+
+  geom_col(position = "dodge2") +
+  scale_fill_brewer(palette="Paired")+
+  labs(
+    title="Business by make",
+    subtitle = "",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=50, ymax=70, xmin = as_date("2021-02-01"))+
+  annotation_custom(gta2, ymin=0, ymax=10, xmin = as_date("2021-07-01"))+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="bottom")
+  
+})
+
+```
+
+Column 
+-------------------------------------
+
+
+### By Model
+
+```{r}
+renderPlot({
+  
+  dt %>% 
+    filter(make==input$make) %>% 
+    mutate(model = fct_infreq(model)) %>% 
+    ggplot(aes(x = model)) + 
+    geom_bar(fill="blue") + 
+  labs(
+    title="Model Popularity",
+    subtitle = "",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=70, ymax=90, xmin = 9) +
+  annotation_custom(gta2, ymin=0, ymax=10, xmin = 10) +
+  coord_cartesian(clip = "off") +
+  theme_clean() +
+  theme(legend.position="bottom")
+  
+})
+```
+
+Column 
+-------------------------------------
+
+
+### By Location
+
+```{r}
+renderPlot({
+  dt %>% 
+    filter(make==input$make) %>% 
+    filter(model==input$model) %>% 
+    ungroup() %>% 
+    mutate(loci.grp=as.factor(loci.grp)) %>% 
+    mutate(loci.grp = fct_infreq(loci.grp)) %>%
+ mutate(loci.grp = fct_lump(loci.grp, n=10)) %>%
+  count(loci.grp) %>% 
+  ggplot(aes(x = loci.grp, y=n)) + 
+  geom_col(fill="blue") +
+  #scale_fill_brewer(palette="Paired")+
+  labs(
+    #title=paste0("Popular locations for ",input$make, " ", input$model, " theft"),
+    subtitle = "",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=20, ymax=30, xmin =11)+
+  annotation_custom(gta2, ymin=0, ymax=10, xmin =12)+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="bottom")
+  
+})
+```
+
+Column 
+-------------------------------------
+
+
+### By Location Type
+
+
+```{r}
+renderPlot({
+  dt %>% 
+    filter(make==input$make) %>%
+    filter(model==input$model) %>%
+    filter(loci.grp==input$locigrp) %>%
+    mutate(location_type = fct_infreq(location_type)) %>%
+  count(location_type) %>% 
+  ggplot(aes(x=location_type, y=n))+
+  geom_col(fill="blue") +
+  #scale_colour_brewer(palette="Paired")+
+  labs(
+    title="Activity by location type",
+    subtitle = "",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=10, ymax=12.5, xmin = -5)+
+  annotation_custom(gta2, ymin=2.5, ymax=5, xmin = 6)+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="bottom")
+    
+})
+```
+
+
+
+Column 
+-------------------------------------
+
+
+### By Day
+
+```{r}
+renderPlot({
+  dt %>% 
+    filter(make==input$make) %>%
+    filter(model==input$model) %>%
+    filter(loci.grp==input$locigrp) %>%
+    filter(location_type==input$loc_type) %>% 
+  count(wkday) %>% 
+  ggplot(aes(x=wkday, y=n))+
+  geom_col(fill="blue") +
+  #scale_colour_brewer(palette="Paired")+
+  labs(
+    title="Activity by days of the week",
+    subtitle = "",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=10, ymax=12.5, xmin = -5)+
+  annotation_custom(gta2, ymin=2.5, ymax=5, xmin = 6)+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="bottom")
+    
+})
+```
+
+
+
+Column 
+-------------------------------------
+
+
+### Activity by time (Day/Night)
+
+
+```{r}
+renderPlot({
+  dt %>% 
+    filter(make==input$make) %>%
+    filter(model==input$model) %>%
+    filter(loci.grp==input$locigrp) %>%
+    filter(location_type==input$loc_type) %>% 
+    filter(wkday==input$wkday) %>%
+  count(theft_type) %>% 
+  ggplot(aes(x=theft_type, y=n))+
+  geom_col(fill="blue") +
+  #scale_colour_brewer(palette="Paired")+
+  labs(
+    title="Activity by Day/Night",
+    subtitle = "",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=20, ymax=30, xmin = 3)+
+  annotation_custom(gta2, ymin=0, ymax=10, xmin = 3)+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="bottom")
+    
+})
+```
+
+Predictive {data-orientation=rows}
+=====================================     
+
+Row {data-height=600}
+-------------------------------------
+
+### Advisory helper
+
+
+```{r}
+DT::renderDataTable({
+   dt %>% 
+  filter(status!="Geen Vaststelling") %>% 
+  select(status,location_type, date_start, model, loci.grp, wkday, time_min,time_max, theft_type) %>% 
+  ungroup() %>% 
+  select(loci.grp, location_type, model, wkday, theft_type) %>% 
+  mutate(model=ifelse(
+    model %in% c("Rio","Picanto","Forte","Sportage"), "popular","not-popular"
+  ),
+  wkday= ifelse(
+    wkday %in% c("Thu","Fri","Sat","Sun"), "weekend","weekday"
+  ),
+  location_type=ifelse(location_type=="Woning-Erf", "Residential", "Commercial"),
+  loci.grp=ifelse(loci.grp %in% c(2,9,6,8,1,11), "top", "not-top")
+  ) %>% 
+  count(loci.grp,location_type, model, wkday, theft_type) %>% 
+  arrange(desc(n)) %>% 
+  mutate(percentage=paste0(round(n*100/sum(n),2)," %")) %>% 
+  DT::datatable(
+    options=list(DT.fillContainer = FALSE)
+  )
+}) 
+
+
+```
+
+
+Row
+-------------------------------------
+
+### Incident probability plot
+
+```{r}
+#print(head(datasurv))
+# renderPlot({
+# ggsurvplot(
+#   survfit(cph, data = datasurv),
+#   surv.median.line = "hv",
+#   pval = T,
+#   test.for.trend = T,
+#   #risk.table = T,
+#   title = "Proxy for risk probability",
+#   xlab = "Probability of no incident",
+#   ylab = "Days since last incident",
+#   ggtheme = theme_minimal()
+# )
+# })
+
+```
+
+### Incident probability by location
+
+```{r}
+# renderPlot({
+#   
+#   ggsurvplot(
+#   survfit(Surv(days_gap, status) ~ loci.grp+location_type, data = datasurv),
+#   conf.int = T,
+#   surv.median.line="hv",
+#            pval=T,
+#            test.for.trend=T,
+#            title = "Proxy for risk probability",
+#            xlab="Probability of no incident",
+#            ylab="Days since last incident",
+#   break.x.by=10,
+#   legend="right",
+#   legend.labs=c("cmmrcl+not-top","rsdntl+not-top","cmmrcl+top","rsdntl+top"),
+#   legend.title="Locations",
+#            ggtheme = theme_minimal()
+# )
+# })
+
+
+```
+
+
+Row
+-------------------------------------
+
+### Risk Calculator
+
+
+```{r}
+# selectizeInput("locationselector","Select Location (Zone)", choices=c(1:20), selected=2)
+```
+
+```{r}
+# selectizeInput("locationtypesel","Select Type of location", choices=c("Residential","Commercial"), selected="Commercial")
+```
+
+```{r}
+# selectizeInput("days_since","Enter Days since last incident", choices=c(1:200), selected=1)
+```
+
+Row
+-------------------------------------
+
+### Output
+
+```{r}
+# renderText({
+#   
+#   newdt<- data.frame(
+#   loci.grp= input$locationselector,
+#   location_type=input$locationtypesel,
+#   days_gap=input$days_since
+# )
+# 
+# p<-predict(final.model,newdata=newdt, type = "expected")
+# pred<-round((1-exp(p))*100,2)
+# pred<-paste0(pred," %")
+# 
+# pred
+# 
+# })
+
+```
+
+
+
+

@@ -1,0 +1,331 @@
+---
+title: "Auto Theft Business Plan Curacao"
+author: "Scary Scarecrow"
+date: "21/06/2021"
+output:
+  ioslides_presentation:
+    logo: logo.png
+    widescreen: true
+    smaller: true
+    self_contained: true
+    theme: lumen
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE)
+library(tidyverse)
+library(lubridate)
+library(ggthemes)
+library(RColorBrewer)
+library(geosphere)
+library(leaflet)
+
+get_png <- function(filename) {
+  grid::rasterGrob(png::readPNG(filename), interpolate = TRUE)
+}
+
+lo <- get_png("logo.png")
+gta<-get_png("gta.png")
+gta2<-get_png("gta2.png")
+
+#dt<-read.csv("policadata.csv")
+#dt<-fst::read_fst("finaldata.fst")
+dt<-readRDS("finaldata.rds")
+```
+
+
+# Business Update
+
+## Business has been fluctuating with downward trend
+
+
+```{r }
+
+dt %>% 
+  filter(date_start>"2019-01-01") %>% 
+  mutate(month=floor_date(date_start, unit="months")) %>% 
+  count(month, status) %>%
+  ggplot(aes(x=month, y=n, fill=status))+
+  geom_col() +
+  scale_fill_brewer(palette="Paired")+
+  labs(
+    title="Number of car thefts seem to be decreasing in Curacao",
+    subtitle = "At this rate there will be no need for Police!",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=50, ymax=70, xmin = as_date("2021-02-01"))+
+  annotation_custom(gta2, ymin=0, ymax=10, xmin = as_date("2021-06-01"))+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="bottom")
+```
+
+
+## Reliance on residential targets have increased
+
+```{r}
+tmp<-
+  dt %>% 
+  filter(date_start>"2019-01-01") %>% 
+  mutate(month=floor_date(date_start, unit="months")) %>% 
+  # mutate(address=str_remove_all(crime_address,"[0-9]")) %>% 
+  # mutate(address=sub("(\\w+\\s+\\w+).*", "\\1",address)) %>% 
+  count(month,location_type) %>% 
+  mutate(location_type2=location_type)
+
+  tmp %>% 
+  ggplot(aes(x=month, y=n))+
+  geom_line(data=tmp %>% select(-location_type), aes(group=location_type2), colour="grey", size=0.5, alpha=0.5) +
+  geom_line(aes(color=location_type), color="#69b3a2", size=1.2)+
+  geom_smooth(method = lm, se = FALSE, size=0.75, linetype="dashed", colour="red")+
+  scale_colour_brewer(palette="Paired")+
+  facet_wrap(~location_type, scale="free_y")+
+  labs(
+    title="Stealing from home is the new trend",
+    subtitle = "",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=50, ymax=70, xmin = as_date("2021-02-01"))+
+  annotation_custom(gta2, ymin=0, ymax=10, xmin = as_date("2021-06-01"))+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="none",
+        panel.spacing = unit(0.1, "lines"),
+        strip.text.x = element_text(size = 8),
+        strip.text.y = element_text(size = 8),
+        legend.title=element_text(size=10),
+        legend.text=element_text(size=7)
+        )
+```
+
+
+## Dependency on night theft is on rise
+
+```{r}
+sunrise=period(hours=6, minutes=30)
+sunset=period(hours=19, minutes=0)
+
+dt %>% 
+    filter(date_start>"2019-01-01") %>% 
+  filter(!is.na(dec_no)) %>% 
+  mutate(month=floor_date(date_start, unit="months")) %>% 
+  mutate(theft_type=
+           ifelse(time_min>sunset | time_min < sunrise | time_max > sunset | time_max < sunrise,"night_queen","dare_devil")) %>%
+  count(month, theft_type) %>% 
+  ggplot(aes(x=month, y=n, fill=theft_type))+
+  geom_col(position = "fill") +
+  scale_colour_brewer(palette="Paired")+
+  labs(
+    title="More action is being noticed at night",
+    subtitle = "",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=50, ymax=70, xmin = as_date("2021-02-01"))+
+  annotation_custom(gta2, ymin=0, ymax=10, xmin = as_date("2021-06-01"))+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="bottom")
+```
+
+
+```{r}
+dt %>% 
+  filter(date_start>"2019-01-01") %>% 
+  filter(!is.na(dec_no)) %>% 
+  mutate(month=floor_date(date_start, unit="months")) %>% 
+  mutate(make=fct_lump(make,8)) %>% 
+  count(month, make) %>% 
+  ggplot(aes(x=month, y=n, fill=make))+
+  geom_col(position = "fill") +
+  scale_fill_brewer(palette="Paired")+
+  labs(
+    title="Kia Remains Primary Choice",
+    subtitle = "",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=50, ymax=70, xmin = as_date("2021-02-01"))+
+  annotation_custom(gta2, ymin=0, ymax=10, xmin = as_date("2021-07-01"))+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="bottom")
+```
+
+
+```{r}
+dt %>% 
+  filter(date_start>"2019-01-01") %>% 
+  filter(!is.na(dec_no)) %>% 
+  filter(status != "Poging") %>% 
+  mutate(month=floor_date(date_start, unit="months")) %>% 
+  mutate(found=ifelse(where_found=="" | where_found=="Niet gevonden" | where_found=="N.G",F,T)) %>% 
+  count(month,found) %>% 
+  ggplot(aes(x=month, y=n, fill=found))+
+  geom_col(position = "stack") +
+  scale_fill_brewer(palette="Paired")+
+  labs(
+    title="Stable efficiency of consumption",
+    subtitle = "",
+    x="",
+    y="Reported incidents related to car theft"
+  ) +
+  annotation_custom(lo, ymin=40, ymax=60, xmin = as_date("2021-02-01"))+
+  annotation_custom(gta2, ymin=0, ymax=10, xmin = as_date("2021-06-01"))+
+  coord_cartesian(clip = "off")+
+  theme_clean() +
+  theme(legend.position="bottom")
+```
+
+
+
+
+```{r}
+dt<-
+  dt %>% 
+  filter(date_start>"2019-01-01") %>% 
+  filter(!is.na(dec_no)) %>%
+  filter(!is.na(long)) %>% 
+  mutate(month=floor_date(date_start, unit="months"))
+
+loci<-data.frame(lon=dt$long, lat=dt$lat)
+
+geo.dist = function(df) {
+  require(geosphere)
+  d <- function(i,z){         # z[1:2] contain long, lat
+    dist <- rep(0,nrow(z))
+    dist[i:nrow(z)] <- distHaversine(z[i:nrow(z),1:2],z[i,1:2])
+    return(dist)
+  }
+  dm <- do.call(cbind,lapply(1:nrow(df),d,df))
+  return(as.dist(dm))
+}
+
+loci.dist<-geo.dist(loci)
+
+hc<-hclust(loci.dist) 
+plot(hc) 
+
+loci.dist$clust <- cutree(hc,k=20)
+str(loci.dist)
+
+dt$loci.grp<- loci.dist$clust
+
+dt %>% 
+  count(loci.grp) %>% 
+  arrange(desc(n))
+
+dt1<-dt %>% 
+  mutate(clr=case_when(
+              loci.grp==2  ~ "red",
+              loci.grp==6  ~ "yellow",
+              loci.grp==9  ~ "purple",
+              loci.grp==8  ~ "blue",
+              loci.grp==1  ~ "cornflowerblue",
+              loci.grp==11 ~ "darkcyan",
+              loci.grp==13 ~ "darkgoldenrod1",
+              loci.grp==10 ~ "burlywood1",
+              loci.grp==16 ~ "darkkhaki",
+              loci.grp==5  ~ "darkorange",
+              loci.grp==4  ~ "darkorchid1",
+              loci.grp==17 ~ "gold",
+              loci.grp==15 ~ "greenyellow",
+              loci.grp==7  ~ "lightgoldenrod",
+              loci.grp==14 ~ "lightpink",
+              loci.grp==20 ~ "lightskyblue1",
+              loci.grp==3  ~ "darkseagreen1",
+              loci.grp==12 ~ "gray78",
+              loci.grp==19 ~ "lightsteelblue1",
+              loci.grp==18 ~ "seashell"))
+  
+  dt2<-
+    dt1 %>% 
+    group_by(clr) %>% 
+  mutate(cases=n())
+  leaflet(dt2) %>% 
+  addTiles() %>% 
+  addCircleMarkers(~long, ~lat, clusterId = ~clr, color=~clr, fillColor = ~clr,
+                   label = ~paste0("Cases ",cases), fillOpacity = 0.2)
+
+```
+
+
+```{r}
+dt1 %>% 
+  select(status,location_type, date_start, model, loci.grp) %>% 
+  filter(model %in% c("Picanto","Rio")) %>% 
+  mutate(new.loci.grp=ifelse(loci.grp %in% c(2,6,9,8,1,11),"top","not-top")) %>% 
+  ungroup() %>% 
+  group_by(model,new.loci.grp) %>% 
+  arrange(date_start) %>% 
+  mutate(date_lag=lag(date_start)) %>% 
+  mutate(days_gap=date_start-date_lag) %>% 
+  ggplot(aes(x=days_gap)) +
+  geom_histogram(binwidth=1) +
+  facet_grid(model~new.loci.grp)
+```
+
+
+```{r}
+datasurv <- 
+  dt1 %>%
+  filter(status != "Geen Vaststelling") %>%
+  select(status,
+         date_start,
+         model,
+         location_type,
+         loci.grp,
+         wkday,
+         time_min,
+         time_max) %>%
+  mutate(
+    theft_type =
+      ifelse(
+        time_min > sunset |
+          time_min < sunrise |
+          time_max > sunset |
+          time_max < sunrise,
+        "night_queen",
+        "dare_devil"
+      )
+  ) %>%
+  ungroup() %>%
+  select(loci.grp, model, location_type, wkday, theft_type, date_start) %>%
+  mutate(
+    model = ifelse(
+      model %in% c("Rio", "Picanto", "Forte", "Sportage"),
+      "popular",
+      "not-popular"
+    ),
+    wkday = ifelse(wkday %in% c("Thu", "Fri", "Sat", "Sun"), "weekend", "weekday"),
+    location_type = ifelse(location_type == "Woning-Erf", "Residential", "Commercial"),
+    loci.grp = ifelse(loci.grp %in% c(2, 9, 6, 8, 1, 11), "top", "not-top")
+  ) %>%
+  group_by(model, loci.grp, location_type) %>%
+  arrange(date_start) %>%
+  mutate(date_lag = lag(date_start)) %>%
+  mutate(days_gap = date_start - date_lag) %>%
+  filter(!is.na(days_gap)) %>%
+  ungroup() %>%
+  # select(loci.grp,model,days_gap) %>%
+  mutate(loci.grp = as.factor(loci.grp),
+         days_gap = as.numeric(days_gap)) %>%
+  mutate(status = 1)
+
+dt1 %>% 
+  mutate(theft_type=
+           ifelse(time_min>sunset | time_min < sunrise | time_max > sunset | time_max < sunrise,"night_queen","dare_devil")) %>%
+  write_rds("finaldata.rds")
+
+datasurv %>% write_rds("survivaldata.rds")
+```
+
+```{r}
+
+```
+
+
