@@ -21,6 +21,9 @@ library(ggthemes)
 library(RColorBrewer)
 library(geosphere)
 library(leaflet)
+library(survival)
+
+thematic::thematic_rmd(font = "auto")
 
 get_png <- function(filename) {
   grid::rasterGrob(png::readPNG(filename), interpolate = TRUE)

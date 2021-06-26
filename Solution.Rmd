@@ -1,0 +1,79 @@
+---
+title: "Solution"
+author: "Scary Scarecrow"
+date: "26/06/2021"
+output: 
+  html_document: 
+    theme: cosmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(RcppAlgos)
+library(combinat)
+```
+
+
+## Problem
+
+1. There are 100 items
+2. Each item is one of 3 different colours
+3. Probability of colours of 3 randomly selected items being different is 0.2
+
+How many numbers of each coloured items are there?
+
+## Solution 1
+
+Assuming the quantities of each coloured items are x,y and z.
+
+$$
+x+y+z=100
+$$
+
+Since we are selecting 3 items from 100, there are $_{100}C_3$ ways to do that. 
+For the three selections to be of different colour, we need to select one of each. There are $_xC_1$ possible ways to select one item from x and so on (for y and z). $_xC_1=x$ and similar for y and z too.
+
+Total probability 
+
+$$
+\frac{x\times y\times z}{_{100}C_3}=0.2
+$$
+```{r echo=FALSE}
+particlesjs::particles("particlesjs-config.json")
+```
+
+
+Now we have 2 equations and three variables. This is where I got stuck. I am unable to form the third equation. Fortunately, all of them are natural numbers and none of the numbers can be greater than 98. So, we can try out different combinations to check which satisfies the conditions.
+
+```{r}
+# The denominator
+no_of_comb<-ncol(combn(100,3))*20/100
+
+# Divisors of the denominator * 0.2, which equals x*y*z
+divisors<-divisorsRcpp(ncol(combn(100,3))*20/100)
+
+#Divisors are <=98
+
+likely.divisors<-divisors[divisors<98]
+
+likely.divisors
+```
+
+A lot of numbers! But not that much. Now we will try out combinations of three numbers till the conditions are satisfied.
+
+```{r}
+
+a=0
+b=0
+while(a!=100 | b!=32340){
+  x<-sample(x=likely.divisors,size=3, replace = F)
+  a<-sum(x)
+  b<-prod(x)
+}
+
+x
+```
+
+
+
+Here we go!
